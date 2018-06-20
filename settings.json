@@ -1,0 +1,18 @@
+{
+    "Version" : "1",
+    "Key_Shutdown" : "KEY_F(1)",
+    "functionListScreenWidth" : 40,
+    "xrefsScreenHeight" :15,
+    "BinaryNinjaContextDualFocus" : false,
+    "BinaryNinjaContextSwitchFocus" : "\t",
+    "linearDisassemblyScrollDown" : "KEY_DOWN",
+    "linearDisassemblyScrollUp" : "KEY_UP",
+    "functionListScrollDown" : "KEY_DOWN",
+    "functionListScrollUp" : "KEY_UP",
+    "linearDisassemblyPageDown" : "KEY_NPAGE",
+    "linearDisassemblyPageUp" : "KEY_PPAGE",
+    "functionListPageDown" : "KEY_NPAGE",
+    "functionListPageUp" : "KEY_PPAGE",
+    "functionListSelect" : "\n",
+    "BinaryNinjaContextSwitchView" : " "
+}
