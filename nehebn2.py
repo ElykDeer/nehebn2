@@ -61,4 +61,6 @@ def main(stdscr):
 
 
 if __name__ == "__main__":
+  background = "2a2a2a"
+  text = "e0e0e0"
   curses.wrapper(main)
