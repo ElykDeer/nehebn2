@@ -15,11 +15,13 @@ class BinaryNinjaContext():
     self.pythonConsoleScreen = curses.newpad(1, curses.COLS)
     self.logScreen = curses.newpad(1, curses.COLS)
 
+    self.OldCursor = 0  # Depricated
     # Disassembly Window Stuff
-    self.cursor = 0  # Current Selection Cursor Position (relative to screen top)
-    self.topLine = 0  # Current Top Of Screen (relative to buffer top)
     self.disassemblySettings = binja.DisassemblySettings()
-    self.pos = self.bv.get_linear_disassembly_position_at(self.bv.start, self.disassemblySettings)
+    self.cursor = self.bv.start  # Current p;osition in the binary
+    self.cursorLDOffset = 0      # Offset from the curent cursor to the line in disassembly
+    self.cursorLDSOffset = 0     # Offset (in lines) from the top of the screen to the current visual cursor in linear view
+    self.cursorHSOffset = 0      # Offset (in lines) from the top of the screen to the current visual cursor in hex view
     self.disassemblyLines = []
 
     # Function List Pane Stuff
@@ -33,8 +35,6 @@ class BinaryNinjaContext():
     # 0 - Linear
     # 1 - Hex
     # 2 - CFG
-
-    self.selll = None
 
     # Set up first view
     self.linearDisassemblyScreen = curses.newpad(curses.LINES-1, curses.COLS - self.program.settings["functionListScreenWidth"])
@@ -52,9 +52,10 @@ class BinaryNinjaContext():
     elif key == self.program.settings["functionListPageUp"]:
       self.funcListCur -= self.functionListScreen.getmaxyx()[0]-3
     elif key == self.program.settings["functionListSelect"]:
-      self.selll = self.bv.functions[self.funcListPos + self.funcListCur]
-      self.pos = self.bv.get_linear_disassembly_position_at(self.selll.start, self.disassemblySettings)
-      self.disassemblyLines = []
+      selection = self.bv.functions[self.funcListPos + self.funcListCur]
+      self.cursor = selection.start
+      self.cursorLDOffset = 0
+      self.cursorLDSOffset = 0
       self.parseInput_linear_main(None)
 
     if self.funcListCur > self.functionListScreen.getmaxyx()[0]-3:
@@ -76,52 +77,106 @@ class BinaryNinjaContext():
 
   def parseInput_linear_main(self, key):
     # Scroll
-    if key == self.program.settings["linearDisassemblyScrollDown"]:
-      self.cursor += 1
-    elif key == self.program.settings["linearDisassemblyScrollUp"]:
-      self.cursor -= 1
-    elif key == self.program.settings["linearDisassemblyPageDown"]:
-      self.cursor += self.linearDisassemblyScreen.getmaxyx()[0]-3
-    elif key == self.program.settings["linearDisassemblyPageUp"]:
-      self.cursor -= self.linearDisassemblyScreen.getmaxyx()[0]-3
 
-    if self.cursor >= self.linearDisassemblyScreen.getmaxyx()[0]-2:
-      self.topLine += self.cursor - self.linearDisassemblyScreen.getmaxyx()[0]+3
-      self.cursor = self.linearDisassemblyScreen.getmaxyx()[0]-3
-    if self.topLine + self.linearDisassemblyScreen.getmaxyx()[0]-2 >= len(self.disassemblyLines):  # If we've run out of lines
-      newLines = self.bv.get_next_linear_disassembly_lines(self.pos, self.disassemblySettings)     # Load some more
-      if len(newLines) == 0:                                                                       # Are we at the end?
-        self.topLine = len(self.disassemblyLines) - self.linearDisassemblyScreen.getmaxyx()[0]
-        return
-      if len(newLines) < len(self.disassemblyLines):                                               # See if we already have these lines
-        if self.disassemblyLines[:len(newLines)] == newLines:
-          while len(newLines) < len(self.disassemblyLines):                                        # Load over what we already have
-            newLines += self.bv.get_next_linear_disassembly_lines(self.pos, self.disassemblySettings)
-      newLines = newLines[len(self.disassemblyLines):]                                           # Clip the old lines
-      while len(newLines) <= self.linearDisassemblyScreen.getmaxyx()[0]-2:          # Load some more lines (the visually "new" lines)
-        newLines += self.bv.get_next_linear_disassembly_lines(self.pos, self.disassemblySettings)
-      self.disassemblyLines = self.disassemblyLines[self.topLine:] + newLines                      # Fetch New Data
-      self.topLine = 0
-    if self.cursor < 0:
-      self.topLine += self.cursor
-      self.cursor = 0
-      if self.topLine < 0:
-        newLines = self.bv.get_previous_linear_disassembly_lines(self.pos, self.disassemblySettings)
-        if len(newLines) == 0:
-          self.topLine = 0
-          return
-        if len(newLines) < len(self.disassemblyLines):                                               # See if we already have these lines
-          if self.disassemblyLines[-len(newLines):] == newLines:
-            while len(newLines) < len(self.disassemblyLines):                                        # Load over what we alerady have
-              newLines = self.bv.get_previous_linear_disassembly_lines(self.pos, self.disassemblySettings) + newLines
-        newLines = newLines[:-len(self.disassemblyLines)]                                           # Clip the old lines
-        self.topLine += len(newLines)
-        while self.topLine < 0:
-          self.disassemblyLines = newLines + self.disassemblyLines
-          newLines = self.bv.get_previous_linear_disassembly_lines(self.pos, self.disassemblySettings)
-          self.topLine += len(newLines)
-        self.disassemblyLines = newLines + self.disassemblyLines
-        self.disassemblyLines = self.disassemblyLines[:self.topLine + self.linearDisassemblyScreen.getmaxyx()[0]-2]
+    # Resolve:
+    #  cursor
+    #  cursorLDOffset
+    #  cursorLDSOffset
+    if key == self.program.settings["linearDisassemblyScrollDown"]:
+      disass = self.bv.get_next_linear_disassembly_lines(self.bv.get_linear_disassembly_position_at(self.cursor, self.disassemblySettings), self.disassemblySettings)
+      if self.cursorLDSOffset < self.linearDisassemblyScreen.getmaxyx()[0]-3:
+        self.cursorLDSOffset += 1
+      if self.cursorLDOffset < len(disass):
+        self.cursorLDOffset += 1
+      else:
+        self.cursorLDOffset = 0
+    elif key == self.program.settings["linearDisassemblyScrollUp"]:
+      if self.cursorLDSOffset > 0:
+        self.cursorLDSOffset -= 1
+      if self.cursorLDOffset > 0:
+        self.cursorLDOffset -= 1
+      else:
+        self.cursorLDOffset = 0
+    elif key == self.program.settings["linearDisassemblyPageDown"]:
+      pass
+    elif key == self.program.settings["linearDisassemblyPageUp"]:
+      pass
+
+    # Load Linear Disassembly to the top and bottom of the screen based off of the current linear disassembly screen offset
+    curPos = self.bv.get_linear_disassembly_position_at(self.cursor, self.disassemblySettings)  # Get linear disassembly position
+    bottomLines = []
+    bottomLinesNeeded = self.linearDisassemblyScreen.getmaxyx()[0]-2 - self.cursorLDSOffset + self.cursorLDOffset
+    while len(bottomLines) < bottomLinesNeeded:  # Load Linear Disassembly Lines To The Bottom Of The Screen
+      newLines = self.bv.get_next_linear_disassembly_lines(curPos, self.disassemblySettings)
+      if len(newLines) == 0:
+        break
+      else:
+        bottomLines += newLines
+    curPos = self.bv.get_linear_disassembly_position_at(self.cursor, self.disassemblySettings)  # Get linear disassembly position
+    topLines = []
+    topLinesNeeded = abs(self.cursorLDOffset - self.cursorLDSOffset) + self.cursorLDSOffset
+    while len(topLines) < topLinesNeeded:  # Load Linear Disassembly Lines To The Top Of The Screen
+      newLines = self.bv.get_previous_linear_disassembly_lines(curPos, self.disassemblySettings)
+      if len(newLines) == 0:
+        break
+      else:
+        topLines = newLines + topLines
+    self.disassemblyLines = topLines + bottomLines
+
+    if len(topLines) == 0:
+      self.disassemblyLines = self.disassemblyLines[:-1*abs(len(bottomLines)-bottomLinesNeeded)]
+    else:
+      self.disassemblyLines = self.disassemblyLines[-1*(abs(len(bottomLines)-bottomLinesNeeded) + self.linearDisassemblyScreen.getmaxyx()[0]-2):-1*abs(len(bottomLines)-bottomLinesNeeded)]
+
+    # Delete when done:
+    self.topLines = topLinesNeeded
+    self.bottomLines = bottomLinesNeeded
+    # self.cursor = self.disassemblyLines[self.cursorLDSOffset].contents.address
+
+    # #  Phase 2: Resolve Cursor Position
+    # if self.cursorLDSOffset >= len(self.disassemblyLines):
+    #   pass
+    # elif self.cursorLDSOffset < 0:
+    #   pass
+
+    # if self.OldCursor >= self.linearDisassemblyScreen.getmaxyx()[0]-2:
+    #   self.topLine += self.OldCursor - self.linearDisassemblyScreen.getmaxyx()[0]+3
+    #   self.OldCursor = self.linearDisassemblyScreen.getmaxyx()[0]-3
+    # if self.topLine + self.linearDisassemblyScreen.getmaxyx()[0]-2 >= len(self.disassemblyLines):  # If we've run out of lines
+    #   newLines = self.bv.get_next_linear_disassembly_lines(self.pos, self.disassemblySettings)     # Load some more
+    #   if len(newLines) == 0:                                                                       # Are we at the end?
+    #     self.topLine = len(self.disassemblyLines) - self.linearDisassemblyScreen.getmaxyx()[0]
+    #     return
+    #   if len(newLines) < len(self.disassemblyLines):                                               # See if we already have these lines
+    #     if self.disassemblyLines[:len(newLines)] == newLines:
+    #       while len(newLines) < len(self.disassemblyLines):                                        # Load over what we already have
+    #         newLines += self.bv.get_next_linear_disassembly_lines(self.pos, self.disassemblySettings)
+    #   newLines = newLines[len(self.disassemblyLines):]                                             # Clip the old lines
+    #   while len(newLines) <= self.linearDisassemblyScreen.getmaxyx()[0]-2:                         # Load some more lines (the visually "new" lines)
+    #     newLines += self.bv.get_next_linear_disassembly_lines(self.pos, self.disassemblySettings)
+    #   self.disassemblyLines = self.disassemblyLines[self.topLine:] + newLines                      # Fetch New Data
+    #   self.topLine = 0
+    # if self.OldCursor < 0:
+    #   self.topLine += self.OldCursor
+    #   self.OldCursor = 0
+    #   if self.topLine < 0:
+    #     newLines = self.bv.get_previous_linear_disassembly_lines(self.pos, self.disassemblySettings)
+    #     if len(newLines) == 0:
+    #       self.topLine = 0
+    #       return
+    #     if len(newLines) < len(self.disassemblyLines):                                               # See if we already have these lines
+    #       if self.disassemblyLines[-len(newLines):] == newLines:
+    #         while len(newLines) < len(self.disassemblyLines):                                        # Load over what we alerady have
+    #           newLines = self.bv.get_previous_linear_disassembly_lines(self.pos, self.disassemblySettings) + newLines
+    #     newLines = newLines[:-len(self.disassemblyLines)]                                            # Clip the old lines
+    #     self.topLine += len(newLines)
+    #     while self.topLine < 0:
+    #       self.disassemblyLines = newLines + self.disassemblyLines
+    #       newLines = self.bv.get_previous_linear_disassembly_lines(self.pos, self.disassemblySettings)
+    #       self.topLine += len(newLines)
+    #     self.disassemblyLines = newLines + self.disassemblyLines
+    #     self.disassemblyLines = self.disassemblyLines[:self.topLine + self.linearDisassemblyScreen.getmaxyx()[0]-2]
+    # self.cursor = self.disassemblyLines[self.topLine + self.OldCursor].contents.address
 
   def parseInput_linear(self, key):
     if self.program.settings["BinaryNinjaContextDualFocus"]:
@@ -248,13 +303,17 @@ class BinaryNinjaContext():
     else:
       self.linearDisassemblyScreen.border()
 
-    for yLine in range(curses.LINES-3):
-      if yLine == self.cursor:
-        # TODO Turn into line highlight instead, sift text back over to the left
-        self.linearDisassemblyScreen.addstr(yLine+1, 1, '>' + str(self.disassemblyLines[self.topLine+yLine]))
-      else:
-        self.linearDisassemblyScreen.addstr(yLine+1, 2, str(self.disassemblyLines[self.topLine+yLine]))
-
+    try:
+      for yLine, textLine in zip(range(len(self.disassemblyLines)), self.disassemblyLines):
+        if yLine == self.cursorLDSOffset:
+          # TODO Turn into line highlight instead, sift text back over to the left
+          self.linearDisassemblyScreen.addstr(yLine+1, 1, '>' + str(textLine))
+        else:
+          self.linearDisassemblyScreen.addstr(yLine+1, 2, str(textLine))
+    except:
+      pass
+      # import pdb
+      # pdb.set_trace()
     self.linearDisassemblyScreen.noutrefresh(0, 0, 0, self.program.settings["functionListScreenWidth"], curses.LINES-2, curses.COLS-1)
 
   def render_hex(self):
@@ -279,11 +338,18 @@ class BinaryNinjaContext():
     self.cfgScreen.noutrefresh(0, 0, 0, self.program.settings["functionListScreenWidth"], curses.LINES-2, curses.COLS-1)
 
   def render_alerts(self):
+    self.alertsScreen.erase()
+
     self.alertsScreen.addstr(0, 0, str(self.bv))
     try:
-      self.alertsScreen.addstr(0, 45, "Disassembly Lines Buffer: " + str(len(self.disassemblyLines)))
-      self.alertsScreen.addstr(0, 100, "Selection: " + self.selll.name)
-      self.alertsScreen.addstr(0, 80, "Pos: " + str(hex(self.pos.address)))
+      self.alertsScreen.addstr(0, 60, "Disass Lines: " + str(len(self.disassemblyLines)))
+      self.alertsScreen.addstr(0, 80, "Cursor: " + hex(self.cursor))
+      self.alertsScreen.addstr(0, 100, "Toplines: " + str(self.topLines))
+      self.alertsScreen.addstr(0, 120, "BottomLines: " + str(self.bottomLines))
+      # self.alertsScreen.addstr(0, 100, "Toplines: " + hex(len(self.topLines)))
+      # self.alertsScreen.addstr(0, 120, "BottomLines: " + hex(len(self.bottomLines)))
+      self.alertsScreen.addstr(0, 140, "Pos: " + str(self.cursorLDOffset))
+      # self.alertsScreen.addstr(0, 100, "Selection: " + self.selll.name)
       # self.alertsScreen.addstr(0, 80, "Screen Height: " + str(self.linearDisassemblyScreen.getmaxyx()[0]-2))
     except:
       pass
