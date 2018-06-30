@@ -2,7 +2,7 @@
     "Version" : "1",
     "Key_Shutdown" : "KEY_F(1)",
     "functionListScreenWidth" : 40,
-    "xrefsScreenHeight" :15,
+    "xrefsScreenHeight" : 15,
     "BinaryNinjaContextDualFocus" : false,
     "BinaryNinjaContextSwitchFocus" : "\t",
     "linearDisassemblyScrollDown" : "KEY_DOWN",
