@@ -21,9 +21,11 @@ class BinaryNinjaContext():
     self.pos = self.bv.start     # Current position in the binary
     self.posOffset = 0           # Displacement in lines between the top of the screen and the rendered location of self.pos
     self.cursorOffset = 0        # Offset (in lines) from the top of the screen to the current visual cursor in linear view
+    self.disassemblyLines = []   # TODO...make sure this is deleted in the view's cleanup
 
-    # self.cursorHSOffset = 0      # Offset (in lines) from the top of the screen to the current visual cursor in hex view
-    self.disassemblyLines = []
+    self.hexOffset = 0           # Offset (in lines) from the top of the screen to the current visual cursor in hex view
+    self.br = binja.BinaryReader(bv)
+    self.hexLines = []           # TODO...make sure this is deleted in the view's cleanup
 
     # Function List Pane Stuff
     self.funcListPos = 0
@@ -114,10 +116,7 @@ class BinaryNinjaContext():
       self.disassemblyLines = self.disassemblyLines[len(topLines)-realOffset:]
 
   def parseInput_linear_main(self, key):
-    # If all else works.. This means we're at the end of the file:
-    # if len(self.disassemblyLines) < self.linearDisassemblyScreen.getmaxyx()[0]-2:
-    #   self.cursorOffset = len(self.disassemblyLines)
-    #   return
+    # TODO...stop clipping
 
     # Scroll
     if key == self.program.settings["linearDisassemblyScrollDown"]:
@@ -135,9 +134,6 @@ class BinaryNinjaContext():
       self.cursorOffset = 0
       self.loadLinearDisassembly()
     elif self.cursorOffset > self.linearDisassemblyScreen.getmaxyx()[0]-3:
-      # if self.disassemblyLines[self.cursorOffset].contents.address != self.pos:
-      #   self.pos = self.disassemblyLines[self.cursorOffset].contents.address
-      # else:
       self.posOffset -= self.cursorOffset - (self.linearDisassemblyScreen.getmaxyx()[0]-3)
       self.cursorOffset = self.linearDisassemblyScreen.getmaxyx()[0]-3
       self.loadLinearDisassembly()
@@ -146,8 +142,7 @@ class BinaryNinjaContext():
     if self.disassemblyLines[self.cursorOffset].contents.address != self.pos:
       self.pos = self.disassemblyLines[self.cursorOffset].contents.address
       self.posOffset = self.cursorOffset  # TODO...FIX
-
-    self.loadLinearDisassembly()
+      self.loadLinearDisassembly()
 
   def parseInput_linear(self, key):
     if self.program.settings["BinaryNinjaContextDualFocus"]:
@@ -159,15 +154,42 @@ class BinaryNinjaContext():
       self.parseInput_functionList(key)
 
   def parseInput_hex(self, key):
+    lineLength = 24
+
     # Scroll
-    if key == self.program.settings["linearDisassemblyScrollDown"]:
-      pass
-    elif key == self.program.settings["linearDisassemblyScrollUp"]:
-      pass
-    elif key == self.program.settings["linearDisassemblyPageDown"]:
-      pass
-    elif key == self.program.settings["linearDisassemblyPageUp"]:
-      pass
+    if key == self.program.settings["hexViewRight"]:
+      if self.pos % lineLength == 0:
+        self.hexOffset += 1
+      self.pos += 1
+    elif key == self.program.settings["hexViewLeft"]:
+      self.pos -= 1
+      if self.pos % lineLength == 0:
+        self.hexOffset -= 1
+    if key == self.program.settings["hexViewLineDown"]:
+      self.hexOffset += 1
+    elif key == self.program.settings["hexViewLineUp"]:
+      self.hexOffset -= 1
+    elif key == self.program.settings["hexViewPageDown"]:
+      self.hexOffset += self.hexScreen.getmaxyx()[0]-3
+    elif key == self.program.settings["hexViewPageUp"]:
+      self.hexOffset -= self.hexScreen.getmaxyx()[0]-3
+
+    # Adjust for off screen
+    if self.hexOffset < 0:
+      self.pos += self.hexOffset * lineLength
+      self.hexOffset = 0
+    elif self.hexOffset > self.hexScreen.getmaxyx()[0]-3:
+      self.pos += (self.hexOffset-(self.hexScreen.getmaxyx()[0]-3)) * lineLength
+      self.hexOffset = self.hexScreen.getmaxyx()[0]-3
+
+    self.hexLines = []
+    topOfScreen = (self.pos - (self.pos % lineLength)) - (self.hexOffset * lineLength)
+    self.br.seek(topOfScreen)
+    # TODO...make this for loop at least reasonably efficient...it's seriously just a clusterfuck right now
+    for _ in range(self.hexScreen.getmaxyx()[0]-2):
+      byteValues = ''.join(["{:02x} ".format(b) for b in self.br.read(lineLength)])[:-1]
+      asciiValues = ''.join([chr(int(b, 16)) if (int(b, 16) > 31 and int(b, 16) < 127) else '.' for b in byteValues.split(' ')])
+      self.hexLines.append(byteValues + " " + asciiValues)
 
   def parseInput_cfg_main(self, key):
     pass
@@ -293,7 +315,10 @@ class BinaryNinjaContext():
     self.hexScreen.erase()
     self.hexScreen.border()
 
-    drawMultiLineText(1, 1, "Hex View", self.hexScreen)
+    for yLine, rawBytes in zip(range(len(self.hexLines)), self.hexLines):
+      self.hexScreen.addstr(yLine+1, 2, rawBytes)
+
+    # drawMultiLineText(1, 1, "Hex View", self.hexScreen)
 
     self.hexScreen.noutrefresh(0, 0, 0, 0, curses.LINES-2, curses.COLS-1)
 

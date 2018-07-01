@@ -9,10 +9,16 @@
     "linearDisassemblyScrollUp" : "KEY_UP",
     "functionListScrollDown" : "KEY_DOWN",
     "functionListScrollUp" : "KEY_UP",
+    "hexViewLineDown" : "KEY_DOWN",
+    "hexViewLineUp" : "KEY_UP",
     "linearDisassemblyPageDown" : "KEY_NPAGE",
     "linearDisassemblyPageUp" : "KEY_PPAGE",
     "functionListPageDown" : "KEY_NPAGE",
     "functionListPageUp" : "KEY_PPAGE",
+    "hexViewPageDown" : "KEY_NPAGE",
+    "hexViewPageUp" : "KEY_PPAGE",
+    "hexViewRight" : "KEY_RIGHT",
+    "hexViewLeft" : "KEY_LEFT",
     "functionListSelect" : "\n",
     "BinaryNinjaContextSwitchView" : " "
 }
