@@ -6,6 +6,8 @@ import argparse
 import os.path
 import curses
 
+# TODO...impliment live-refreashing the settings.json during run (add the keybinding and check for it here in the global input loop)
+# TODO...support multi-key presses? Not sure if this already works or not
 
 def main(stdscr):
   # Setup

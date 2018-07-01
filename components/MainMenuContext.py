@@ -82,6 +82,8 @@ class MainMenuContext():
         self.menuContext = 0
 
   def render(self):
+    # TODO...seperate views into different functions
+    # TODO...add some settings to the settings view
     self.screen.erase()
 
     self.screen.border()

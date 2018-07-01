@@ -1,6 +1,17 @@
-from components.utils import *
+from components.utils import drawList, drawMultiLineText
 import binaryninja as binja
 import curses
+
+
+# TODO...Loosely ordered by importance:
+# TODO...impliment 'GO TO' box
+# TODO...maybe seperate each view into a class to make cleaning up the various view-dependant variables neater?
+# TODO...impliment color themes with the new color theme format courtesy of peter
+# TODO...impliment disassembly options
+# TODO...impliment scroll bars on windows?, and the setting to disable them
+# TODO...impliment the ability to edit what we're seeing.. Enter an insert mode in Hex view (or be in it by defualt like in BN proper), and have patches availible in linear/cfg
+# TODO...impliment the ability to cursor into linear assembly lines.
+# TODO...impliment undo!  I think the API actually takes care of this for us nicely, but editing has to be implimented first and it'd be nice to snap the view back to whatever is being edited too
 
 
 class BinaryNinjaContext():
@@ -45,39 +56,6 @@ class BinaryNinjaContext():
     self.xrefsScreen = curses.newpad(self.program.settings["xrefsScreenHeight"], self.program.settings["functionListScreenWidth"])
     self.loadLinearDisassembly()
 
-  def parseInput_functionList(self, key):
-    bvFunctionsLen = len(self.bv.functions)
-    if key == self.program.settings["functionListScrollDown"]:
-      self.funcListCur += 1
-    elif key == self.program.settings["functionListScrollUp"]:
-      self.funcListCur -= 1
-    elif key == self.program.settings["functionListPageDown"]:
-      self.funcListCur += self.functionListScreen.getmaxyx()[0]-3
-    elif key == self.program.settings["functionListPageUp"]:
-      self.funcListCur -= self.functionListScreen.getmaxyx()[0]-3
-    elif key == self.program.settings["functionListSelect"]:
-      selection = self.bv.functions[self.funcListPos + self.funcListCur]
-      self.pos = selection.start
-      self.cursorOffset = 0
-      self.loadLinearDisassembly()
-
-    if self.funcListCur > self.functionListScreen.getmaxyx()[0]-3:
-      self.funcListPos += self.funcListCur - self.functionListScreen.getmaxyx()[0]+3
-      self.funcListCur = self.functionListScreen.getmaxyx()[0]-3
-    elif self.funcListCur < 0:
-      self.funcListPos += self.funcListCur
-      self.funcListCur = 0
-
-    if self.funcListPos < 0:
-      self.funcListPos = 0
-    elif self.funcListPos > bvFunctionsLen - self.functionListScreen.getmaxyx()[0]+2:
-      self.funcListPos = bvFunctionsLen - self.functionListScreen.getmaxyx()[0]+2
-
-    # TODO : Impliment Wrap Around
-    # TODO : Impliment Not Crashing On Moving Past Buffer
-
-    self.updateFunctionList = True
-
   def loadLinearDisassembly(self):
     # Get current offset into block
     disassBlockOffset = 0
@@ -115,8 +93,45 @@ class BinaryNinjaContext():
     else:
       self.disassemblyLines = self.disassemblyLines[len(topLines)-realOffset:]
 
+  def parseInput_functionList(self, key):
+    bvFunctionsLen = len(self.bv.functions)
+    if key == self.program.settings["functionListScrollDown"]:
+      self.funcListCur += 1
+    elif key == self.program.settings["functionListScrollUp"]:
+      self.funcListCur -= 1
+    elif key == self.program.settings["functionListPageDown"]:
+      self.funcListCur += self.functionListScreen.getmaxyx()[0]-3
+    elif key == self.program.settings["functionListPageUp"]:
+      self.funcListCur -= self.functionListScreen.getmaxyx()[0]-3
+    elif key == self.program.settings["functionListSelect"]:
+      selection = self.bv.functions[self.funcListPos + self.funcListCur]
+      self.pos = selection.start
+      self.cursorOffset = 0
+      self.loadLinearDisassembly()
+
+    if self.funcListCur > self.functionListScreen.getmaxyx()[0]-3:
+      self.funcListPos += self.funcListCur - self.functionListScreen.getmaxyx()[0]+3
+      self.funcListCur = self.functionListScreen.getmaxyx()[0]-3
+    elif self.funcListCur < 0:
+      self.funcListPos += self.funcListCur
+      self.funcListCur = 0
+
+    if self.funcListPos < 0:
+      self.funcListPos = 0
+    elif self.funcListPos > bvFunctionsLen - self.functionListScreen.getmaxyx()[0]+2:
+      self.funcListPos = bvFunctionsLen - self.functionListScreen.getmaxyx()[0]+2
+
+    # TODO : Impliment Wrap Around
+    # TODO : Impliment Not Crashing On Moving Past Buffer
+
+    self.updateFunctionList = True
+
+  def parseInput_xrefs(self, key):
+    # TODO...impliment xrefs window up/down, cursor, and selection mechanics
+    pass
+
   def parseInput_linear_main(self, key):
-    # TODO...stop clipping
+    # TODO...FIX...stop clipping
 
     # Scroll
     if key == self.program.settings["linearDisassemblyScrollDown"]:
@@ -141,7 +156,7 @@ class BinaryNinjaContext():
     # Adjust for new address
     if self.disassemblyLines[self.cursorOffset].contents.address != self.pos:
       self.pos = self.disassemblyLines[self.cursorOffset].contents.address
-      self.posOffset = self.cursorOffset  # TODO...FIX
+      self.posOffset = self.cursorOffset  # TODO...FIX...will currently jump to the top of a block, also skips down in some cases?
       self.loadLinearDisassembly()
 
   def parseInput_linear(self, key):
@@ -152,47 +167,58 @@ class BinaryNinjaContext():
       self.parseInput_linear_main(key)
     elif self.focus == 1:
       self.parseInput_functionList(key)
+    elif self.focus == 2:
+      self.parseInput_xrefs(key)
 
   def parseInput_hex(self, key):
     lineLength = 24
 
     # Scroll
     if key == self.program.settings["hexViewRight"]:
+      self.pos += 1
       if self.pos % lineLength == 0:
         self.hexOffset += 1
-      self.pos += 1
     elif key == self.program.settings["hexViewLeft"]:
-      self.pos -= 1
       if self.pos % lineLength == 0:
         self.hexOffset -= 1
-    if key == self.program.settings["hexViewLineDown"]:
+      self.pos -= 1
+    elif key == self.program.settings["hexViewLineDown"]:
       self.hexOffset += 1
+      self.pos += lineLength
     elif key == self.program.settings["hexViewLineUp"]:
       self.hexOffset -= 1
+      self.pos -= lineLength
     elif key == self.program.settings["hexViewPageDown"]:
       self.hexOffset += self.hexScreen.getmaxyx()[0]-3
+      self.pos += lineLength * (self.hexScreen.getmaxyx()[0]-3)
     elif key == self.program.settings["hexViewPageUp"]:
       self.hexOffset -= self.hexScreen.getmaxyx()[0]-3
+      self.pos -= lineLength * (self.hexScreen.getmaxyx()[0]-3)
 
     # Adjust for off screen
     if self.hexOffset < 0:
-      self.pos += self.hexOffset * lineLength
       self.hexOffset = 0
     elif self.hexOffset > self.hexScreen.getmaxyx()[0]-3:
-      self.pos += (self.hexOffset-(self.hexScreen.getmaxyx()[0]-3)) * lineLength
       self.hexOffset = self.hexScreen.getmaxyx()[0]-3
+
+    if self.pos < self.bv.start:
+      self.pos = self.bv.start
+    elif self.pos > self.bv.end:
+      self.pos = self.bv.end
 
     self.hexLines = []
     topOfScreen = (self.pos - (self.pos % lineLength)) - (self.hexOffset * lineLength)
+    self.topOfScreen = topOfScreen
     self.br.seek(topOfScreen)
     # TODO...make this for loop at least reasonably efficient...it's seriously just a clusterfuck right now
     for _ in range(self.hexScreen.getmaxyx()[0]-2):
+      offset = "{:08x}   ".format(self.br.offset)
       byteValues = ''.join(["{:02x} ".format(b) for b in self.br.read(lineLength)])[:-1]
       asciiValues = ''.join([chr(int(b, 16)) if (int(b, 16) > 31 and int(b, 16) < 127) else '.' for b in byteValues.split(' ')])
-      self.hexLines.append(byteValues + " " + asciiValues)
+      self.hexLines.append(offset + byteValues + "   " + asciiValues)
 
   def parseInput_cfg_main(self, key):
-    pass
+    pass  # TODO...impliment parseInput_cfg_main
 
   def parseInput_cfg(self, key):
     if self.program.settings["BinaryNinjaContextDualFocus"]:
@@ -202,6 +228,8 @@ class BinaryNinjaContext():
       self.parseInput_cfg_main(key)
     elif self.focus == 1:
       self.parseInput_functionList(key)
+    elif self.focus == 2:
+      self.parseInput_xrefs(key)
 
   def parseInput(self, key):
     if key == self.program.settings["BinaryNinjaContextSwitchView"]:
@@ -231,6 +259,7 @@ class BinaryNinjaContext():
         self.linearDisassemblyScreen = curses.newpad(curses.LINES-1, curses.COLS - self.program.settings["functionListScreenWidth"])
         self.functionListScreen = curses.newpad(curses.LINES-1-self.program.settings["xrefsScreenHeight"], self.program.settings["functionListScreenWidth"])
         self.xrefsScreen = curses.newpad(self.program.settings["xrefsScreenHeight"], self.program.settings["functionListScreenWidth"])
+        self.loadLinearDisassembly()
       elif self.view == 1:
         self.updateFunctionList = True
         self.hexScreen = curses.newpad(curses.LINES-1, curses.COLS)
@@ -256,7 +285,7 @@ class BinaryNinjaContext():
 
   def render_functionList(self):
     # Not the best implimentation of this...but it makes only the functionList window input-lag (unless in dual focus mode... :/ )
-    # TODO Fix
+    # TODO Fix the lag induced by fetching the names of the functions (seems to take forever)
     if self.updateFunctionList:
       self.functionListScreen.erase()
 
@@ -283,7 +312,21 @@ class BinaryNinjaContext():
     else:
       self.xrefsScreen.border()
 
-    drawMultiLineText(1, 1, "XRefs", self.xrefsScreen)
+    # TODO...get and render xrefs in a more elegant manner
+
+    xrefs = self.bv.get_code_refs(self.pos)
+    xrefLines = []
+    for yLine, xref in zip(range(len(xrefs)), xrefs):
+      line = "{:08x}".format(xref.address)
+      line += " in " + xref.function.name
+      xrefLines.append(line)
+      line = "   " + self.bv.get_disassembly(xref.address)
+      xrefLines.append(line)
+    drawList(1, 2, xrefLines, self.xrefsScreen, boarder=True)
+
+    if len(xrefLines) == 0:
+      self.xrefsScreen.addstr(1, 2, ":(")
+
     self.xrefsScreen.noutrefresh(0, 0, curses.LINES-1-self.program.settings["xrefsScreenHeight"], 0, curses.LINES-2, self.program.settings["functionListScreenWidth"])
 
   def render_linear(self):
@@ -315,10 +358,13 @@ class BinaryNinjaContext():
     self.hexScreen.erase()
     self.hexScreen.border()
 
-    for yLine, rawBytes in zip(range(len(self.hexLines)), self.hexLines):
-      self.hexScreen.addstr(yLine+1, 2, rawBytes)
+    # TODO...impliment cursor highlight
 
-    # drawMultiLineText(1, 1, "Hex View", self.hexScreen)
+    for yLine, rawBytes in zip(range(len(self.hexLines)), self.hexLines):
+      if yLine == self.hexOffset:
+        self.hexScreen.addstr(yLine+1, 1, ">" + rawBytes)
+      else:
+        self.hexScreen.addstr(yLine+1, 2, rawBytes)
 
     self.hexScreen.noutrefresh(0, 0, 0, 0, curses.LINES-2, curses.COLS-1)
 
@@ -332,22 +378,25 @@ class BinaryNinjaContext():
     else:
       self.cfgScreen.border()
 
+    # TODO...impliment render_cfg (still need to render actual graphs..)
     drawMultiLineText(1, 1, "Control Flow Graph!", self.cfgScreen)
     self.cfgScreen.noutrefresh(0, 0, 0, self.program.settings["functionListScreenWidth"], curses.LINES-2, curses.COLS-1)
 
   def render_alerts(self):
     self.alertsScreen.erase()
 
-    self.alertsScreen.addstr(0, 0, str(self.bv))
+    alerts = ""
+    alerts += str(self.bv) + "   "
+    alerts += "Cursor Position: " + hex(self.pos) + "   "
     try:
-      self.alertsScreen.addstr(0, 60, "Disass Lines: " + str(len(self.disassemblyLines)))
-      self.alertsScreen.addstr(0, 80, "pos: " + hex(self.pos))
-      self.alertsScreen.addstr(0, 100, "PosOffset: " + str(self.posOffset))
-      self.alertsScreen.addstr(0, 120, "Cursor: " + str(self.cursorOffset))
-      self.alertsScreen.addstr(0, 140, "realOff: " + str(self.realOffset))
-      self.alertsScreen.addstr(0, 160, "cursaddress: " + hex(self.disassemblyLines[self.cursorOffset+1].contents.address))
+      alerts += "Disass Lines: " + str(len(self.disassemblyLines)) + "   "
+      alerts += "PosOffset: " + str(self.posOffset) + "   "
+      alerts += "LinDisCursOffset: " + str(self.cursorOffset) + "   "
+      alerts += "realOff: " + str(self.realOffset) + "   "
+      # alerts +=  + "   "
     except:
       pass
+    self.alertsScreen.addstr(0, 0, alerts)
     self.alertsScreen.noutrefresh(0, 0, curses.LINES-1, 0, curses.LINES-1, curses.COLS-1)
 
   def render(self):
