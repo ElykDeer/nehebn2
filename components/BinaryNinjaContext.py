@@ -121,8 +121,8 @@ class BinaryNinjaContext():
     elif self.funcListPos > bvFunctionsLen - self.functionListScreen.getmaxyx()[0]+2:
       self.funcListPos = bvFunctionsLen - self.functionListScreen.getmaxyx()[0]+2
 
-    # TODO : Impliment Wrap Around
-    # TODO : Impliment Not Crashing On Moving Past Buffer
+    # TODO...Impliment Wrap Around
+    # TODO...Impliment Not Crashing On Moving Past Buffer
 
     self.updateFunctionList = True
 
@@ -285,7 +285,7 @@ class BinaryNinjaContext():
 
   def render_functionList(self):
     # Not the best implimentation of this...but it makes only the functionList window input-lag (unless in dual focus mode... :/ )
-    # TODO Fix the lag induced by fetching the names of the functions (seems to take forever)
+    # TODO...FIX the lag induced by fetching the names of the functions (seems to take forever)
     if self.updateFunctionList:
       self.functionListScreen.erase()
 
@@ -297,7 +297,7 @@ class BinaryNinjaContext():
     if self.updateFunctionList:
       for yLine in range(self.funcListPos, self.funcListPos+(curses.LINES-3)-self.program.settings["xrefsScreenHeight"]):
         if yLine == self.funcListCur + self.funcListPos:
-          # TODO Turn into line highlight instead, sift text back over to the left
+          # TODO...Turn into function name's highlight instead, sift text back over to the left
           self.functionListScreen.addstr(yLine-self.funcListPos+1, 2, '> ' + self.bv.functions[yLine].name)  # Name access is slow
         else:
           self.functionListScreen.addstr(yLine-self.funcListPos+1, 4, self.bv.functions[yLine].name)  # Name access is slow
@@ -347,7 +347,7 @@ class BinaryNinjaContext():
 
     for yLine, textLine in zip(rendRange, self.disassemblyLines):
       if yLine == self.cursorOffset:
-        # TODO Turn into line highlight instead, sift text back over to the left
+        # TODO...Turn into a linear disassembly line highlight instead, shift text back over to the left
         self.linearDisassemblyScreen.addstr(yLine+1, 1, '>' + str(textLine))
       else:
         self.linearDisassemblyScreen.addstr(yLine+1, 2, str(textLine))
@@ -358,7 +358,7 @@ class BinaryNinjaContext():
     self.hexScreen.erase()
     self.hexScreen.border()
 
-    # TODO...impliment cursor highlight
+    # TODO...impliment highlighting current position
 
     for yLine, rawBytes in zip(range(len(self.hexLines)), self.hexLines):
       if yLine == self.hexOffset:

@@ -8,6 +8,7 @@ import curses
 
 # TODO...impliment live-refreashing the settings.json during run (add the keybinding and check for it here in the global input loop)
 # TODO...support multi-key presses? Not sure if this already works or not
+# TODO...make sure to support small terminals (I think it does right now, but I should add some more checks so nothing goes out of bounds)
 
 def main(stdscr):
   # Setup

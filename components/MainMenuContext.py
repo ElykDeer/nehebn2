@@ -6,12 +6,15 @@ import curses
 import os
 
 
+# TODO...FIX the ugly main menu screen...seriously
+
+
 class MainMenuContext():
   def __init__(self, program, screen):
     self.program = program
     self.screen = screen
     self.welcome = pyfiglet.figlet_format('Welcome to,\n   Binary\n    Ninja', font='rowancap', width=curses.COLS)
-    self.bnlogo = ''.join(open("small.logo").readlines())
+    self.bnlogo = ''.join(open("Logos/small.logo").readlines())
 
     self.menupad = None
     self.menuContext = 0
