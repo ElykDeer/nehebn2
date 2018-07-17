@@ -57,7 +57,7 @@ As you can see, there is plenty left to do and I am eager to do them, but I want
 
 ![Demo](demo.gif)
 
-To be clear, this is built using the [BinaryNinjaAPI](github.com/Vector35/binaryninja-api) and python3.. As it stands as of July 1st, 2018, you'll need to use the `test_python3_unit` branch to build yourself the version of the API that works with python3...(I'll fix that as soon as I can figure out Vector35's build system and get the builds passing on all three platforms).  You also need to have a headless license to use this...though you might also be able to run it in the script console as well.
+To be clear, this is built using the [BinaryNinjaAPI](github.com/Vector35/binaryninja-api) and python3.  To use this, you will need to have a [headless license from Vector35](binary.ninja/purchase/)...though you might also be able to run it in the script console as well.
 
 TL;DR:  
 If you're interested in this thumbs up on [GitHub issue #1](github.com/KyleMiles/nehebn2/issues/1) and if there's enough interest I'll keep working on this rather than moving on to another project.  If you want to contribute, I'll be happy to accept reasonably well-done pull requests.
