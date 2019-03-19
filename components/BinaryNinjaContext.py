@@ -206,6 +206,7 @@ class BinaryNinjaContext():
     elif self.pos > self.bv.end:
       self.pos = self.bv.end
 
+    # Get lines to render
     self.hexLines = []
     topOfScreen = (self.pos - (self.pos % lineLength)) - (self.hexOffset * lineLength)
     self.topOfScreen = topOfScreen
@@ -213,9 +214,47 @@ class BinaryNinjaContext():
     # TODO...make this for loop at least reasonably efficient...it's seriously just a clusterfuck right now
     for _ in range(self.hexScreen.getmaxyx()[0]-2):
       offset = "{:08x}   ".format(self.br.offset)
-      byteValues = ''.join(["{:02x} ".format(b) for b in self.br.read(lineLength)])[:-1]
-      asciiValues = ''.join([chr(int(b, 16)) if (int(b, 16) > 31 and int(b, 16) < 127) else '.' for b in byteValues.split(' ')])
-      self.hexLines.append(offset + byteValues + "   " + asciiValues)
+      line_bytes = self.br.read(lineLength)
+      
+      # Sections that don't exist in the memory
+      if line_bytes is None:
+        line_bytes = b''
+        line_byte = self.br.read(1)
+        while line_byte is not None:
+          line_bytes += line_byte
+          line_byte = self.br.read(1)
+
+      if len(line_bytes) == lineLength:
+        byteValues = ''.join(["{:02x} ".format(b) for b in line_bytes])[:-1]
+        asciiValues = ''.join([chr(int(b, 16)) if (int(b, 16) > 31 and int(b, 16) < 127) else '.' for b in byteValues.split(' ')])
+        self.hexLines.append(offset + byteValues + "   " + asciiValues)
+
+      else:
+        # skippedLinesLine = 0
+
+        byteValues = ''.join(["{:02x} ".format(b) for b in line_bytes])[:-1]
+        asciiValues = ''.join([chr(int(b, 16)) if (int(b, 16) > 31 and int(b, 16) < 127) else '.' for b in byteValues.split(' ')[:-1]])
+        self.hexLines.append(offset + byteValues + " "*(lineLength*3-len(byteValues)) + "  " + asciiValues)
+        if (len(self.hexLines) != self.hexScreen.getmaxyx()[0]-2):
+          self.hexLines.append('-'*(lineLength*4 + 13))
+          # skippedLinesLine = len(self.hexLines)-1
+
+        line_byte = None
+        while line_byte is None and self.br.offset <= self.bv.end:
+
+          # if self.hexOffset == skippedLinesLine:
+          #   # if key == self.program.settings["hexViewLineUp"] or key == self.program.settings["hexViewPageUp"]:
+          #   #   self.hexOffset -= 1
+          #   if key == self.program.settings["hexViewLineDown"] or key == self.program.settings["hexViewPageDown"]:
+          #     self.hexOffset += 1
+          #     self.pos = self.br.offset
+
+          self.br.seek(self.br.offset+1)
+          line_byte = self.br.read(1)
+        self.br.seek(self.br.offset-1)
+
+      if (len(self.hexLines) == self.hexScreen.getmaxyx()[0]-2):
+        break
 
   def parseInput_cfg_main(self, key):
     pass  # TODO...impliment parseInput_cfg_main
@@ -393,7 +432,7 @@ class BinaryNinjaContext():
       alerts += "PosOffset: " + str(self.posOffset) + "   "
       alerts += "LinDisCursOffset: " + str(self.cursorOffset) + "   "
       alerts += "realOff: " + str(self.realOffset) + "   "
-      # alerts +=  + "   "
+      # alerts += "" + str() + "   "
     except:
       pass
     self.alertsScreen.addstr(0, 0, alerts)
