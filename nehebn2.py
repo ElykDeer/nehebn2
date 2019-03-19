@@ -48,17 +48,21 @@ def main(stdscr):
 
   key = ""
   while program.is_running:
-    # Input Filtering
-    try:
-      key = stdscr.getkey()
-    except curses.error as err:
-      if not str(err) == "no input":
-        raise curses.error(str(err))
-      else:
-        key = ""  # Clear Key Buffer
+    # Input Filtering, Debuffering, Processing
+    count = 0
+    while count < 5:
+      try:
+        key = stdscr.getkey()
+        program.parseInput(key)
+        count += 1
+      except curses.error as err:
+        if not str(err) == "no input":
+          raise curses.error(str(err))
+        else:
+          key = ""  # Clear Key Buffer
+          break
 
-    # Rendering and input
-    program.parseInput(key)
+    # Render
     program.render()
     curses.doupdate()
 
