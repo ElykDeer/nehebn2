@@ -9,7 +9,7 @@ import curses
 # TODO...implement color themes with the new color theme format courtesy of peter
 # TODO...implement disassembly options
 # TODO...implement scroll bars on windows?, and the setting to disable them
-# TODO...implement the ability to edit what we're seeing.. Enter an insert mode in Hex view (or be in it by defualt like in BN proper), and have patches availible in linear/cfg
+# TODO...implement patching linear/cfg
 # TODO...implement the ability to cursor into linear assembly lines.
 # TODO...implement undo!  I think the API actually takes care of this for us nicely, but editing has to be implemented first and it'd be nice to snap the view back to whatever is being edited too
 

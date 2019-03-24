@@ -28,11 +28,9 @@ Currently, if you didn't get this from the list above, N2 is seriously lacking..
 # TODO...implement color themes with the new color theme format courtesy of peter
 # TODO...implement disassembly options
 # TODO...implement scroll bars on windows?, and the setting to disable them
-# TODO...implement the ability to edit what we're seeing.. Enter an insert mode in Hex view (or be in it by default like in BN proper), and have patches available in linear/cfg
+# TODO...implement patching linear/cfg
 # TODO...implement the ability to cursor into linear assembly lines.
 # TODO...implement undo!  I think the API actually takes care of this for us nicely, but editing has to be implemented first and it'd be nice to snap the view back to whatever is being edited too
-# TODO...make sure this is deleted in the view's cleanup
-# TODO...make sure this is deleted in the view's cleanup
 # TODO...Implement Wrap Around
 # TODO...Implement Not Crashing On Moving Past Buffer
 # TODO...implement xrefs window up/down, cursor, and selection mechanics
@@ -41,10 +39,7 @@ Currently, if you didn't get this from the list above, N2 is seriously lacking..
 # TODO...make this for loop at least reasonably efficient...it's seriously just a clusterfuck right now
 # TODO...implement parseInput_cfg_main
 # TODO...FIX the lag induced by fetching the names of the functions (seems to take forever)
-# TODO...Turn into function name's highlight instead, sift text back over to the left
 # TODO...get and render xrefs in a more elegant manner
-# TODO...Turn into a linear disassembly line highlight instead, shift text back over to the left
-# TODO...implement highlighting current position
 # TODO...implement render_cfg (still need to render actual graphs..)
 # TODO...seperate views into different functions
 # TODO...add some settings to the settings view
