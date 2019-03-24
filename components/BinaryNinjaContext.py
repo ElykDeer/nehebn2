@@ -69,11 +69,13 @@ class BinaryNinjaContext():
 
           if self.view == BinaryNinjaContext.View.LINEAR:
             self.pos = gotoInput
-            self.cursorOffset = 0
-            self.loadLinearDisassembly()
+            self.currentView.cursorOffset = 0
+            self.currentView.loadLinearDisassembly()
           elif self.view == BinaryNinjaContext.View.HEX:
             self.pos = gotoInput
-            self.loadHexLines()
+            self.currentView.hexOffset = 0
+            self.currentView.hexCursor = self.pos
+            self.currentView.loadHexLines()
           elif self.view == BinaryNinjaContext.View.CFG:
             self.pos = gotoInput
 
@@ -82,7 +84,6 @@ class BinaryNinjaContext():
           del self.gotoCursor
       except:
         pass
-
 
     elif key == "KEY_LEFT":
       if self.gotoCursor > 0:
@@ -131,7 +132,8 @@ class BinaryNinjaContext():
       self.parseInput_popup_goto(key)
     
     # Views input capturing
-    self.currentView.parseInput(key)
+    else:
+      self.currentView.parseInput(key)
 
   def render_alerts(self):
     self.alertsScreen.erase()
