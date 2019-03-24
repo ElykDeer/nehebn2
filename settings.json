@@ -4,6 +4,7 @@
     "functionListScreenWidth" : 40,
     "xrefsScreenHeight" : 15,
     "BinaryNinjaContextDualFocus" : false,
+    "BinaryNinjaContextSwitchView" : " ",
     "BinaryNinjaContextSwitchFocus" : "\t",
     "linearDisassemblyScrollDown" : "KEY_DOWN",
     "linearDisassemblyScrollUp" : "KEY_UP",
@@ -19,6 +20,8 @@
     "hexViewPageUp" : "KEY_PPAGE",
     "hexViewRight" : "KEY_RIGHT",
     "hexViewLeft" : "KEY_LEFT",
+    "hexLineLength" : 24,
     "functionListSelect" : "\n",
-    "BinaryNinjaContextSwitchView" : " "
+    "popupWindowGoto" : "g",
+    "confirm" : "\n"
 }

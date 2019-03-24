@@ -5,7 +5,6 @@ import curses
 
 
 # TODO...Loosely ordered by importance:
-# TODO...impliment 'GO TO' box
 # TODO...maybe seperate each view into a class to make cleaning up the various view-dependant variables neater?
 # TODO...impliment color themes with the new color theme format courtesy of peter
 # TODO...impliment disassembly options
@@ -22,12 +21,15 @@ class BinaryNinjaContext():
     LINEAR = 0
     HEX    = 1
     CFG    = 2
-    GOTO   = 3
 
   class Focus(Enum):
     MAIN = 0
     FUNC = 1
     XREF = 2
+
+  class Popup(Enum):
+    NONE = 0
+    GOTO = 1
 
   def __init__(self, program, screen, bv):
     self.program = program
@@ -38,6 +40,7 @@ class BinaryNinjaContext():
     self.alertsScreen = curses.newpad(1, curses.COLS)
     self.pythonConsoleScreen = curses.newpad(1, curses.COLS)
     self.logScreen = curses.newpad(1, curses.COLS)
+    self.popupGotoScreen = curses.newpad(3, 16)
 
     # Disassembly Window Stuff
     self.disassemblySettings = binja.DisassemblySettings()
@@ -45,11 +48,9 @@ class BinaryNinjaContext():
     self.pos = self.bv.start     # Current position in the binary
     self.posOffset = 0           # Displacement in lines between the top of the screen and the rendered location of self.pos
     self.cursorOffset = 0        # Offset (in lines) from the top of the screen to the current visual cursor in linear view
-    self.disassemblyLines = []   # TODO...make sure this is deleted in the view's cleanup
+    self.disassemblyLines = []
 
-    self.hexOffset = 0           # Offset (in lines) from the top of the screen to the current visual cursor in hex view
     self.br = binja.BinaryReader(bv)
-    self.hexLines = []           # TODO...make sure this is deleted in the view's cleanup
 
     # Function List Pane Stuff
     self.funcListPos = 0
@@ -58,8 +59,9 @@ class BinaryNinjaContext():
 
     # Global Stuff
     self.focus = BinaryNinjaContext.Focus.MAIN
-    self.view = BinaryNinjaContext.View.LINEAR
-    
+    self.view  = BinaryNinjaContext.View.LINEAR
+    self.popup = BinaryNinjaContext.Popup.NONE
+
     # Set up first view
     self.linearDisassemblyScreen = curses.newpad(curses.LINES-1, curses.COLS - self.program.settings["functionListScreenWidth"])
     self.functionListScreen = curses.newpad(curses.LINES-1-self.program.settings["xrefsScreenHeight"], self.program.settings["functionListScreenWidth"])
@@ -102,6 +104,46 @@ class BinaryNinjaContext():
       self.disassemblyLines = self.disassemblyLines[-1*realOffset:]
     else:
       self.disassemblyLines = self.disassemblyLines[len(topLines)-realOffset:]
+
+  def loadHexLines(self):
+    # Get lines to render
+    self.hexLines = []
+    topOfScreen = (self.pos - (self.pos % self.program.settings["hexLineLength"])) - (self.hexOffset * self.program.settings["hexLineLength"])
+    self.topOfScreen = topOfScreen
+    self.br.seek(topOfScreen)
+    # TODO...make this for loop at least reasonably efficient...it's seriously just a clusterfuck right now
+    for _ in range(self.hexScreen.getmaxyx()[0]-2):
+      offset = "{:08x}   ".format(self.br.offset)
+      line_bytes = self.br.read(self.program.settings["hexLineLength"])
+      
+      # Sections that don't exist in the memory
+      if line_bytes is None:
+        line_bytes = b''
+        line_byte = self.br.read(1)
+        while line_byte is not None:
+          line_bytes += line_byte
+          line_byte = self.br.read(1)
+
+      if len(line_bytes) == self.program.settings["hexLineLength"]:
+        byteValues = ''.join(["{:02x} ".format(b) for b in line_bytes])[:-1]
+        asciiValues = ''.join([chr(int(b, 16)) if (int(b, 16) > 31 and int(b, 16) < 127) else '.' for b in byteValues.split(' ')])
+        self.hexLines.append(offset + byteValues + "   " + asciiValues)
+
+      else:
+        byteValues = ''.join(["{:02x} ".format(b) for b in line_bytes])[:-1]
+        asciiValues = ''.join([chr(int(b, 16)) if (int(b, 16) > 31 and int(b, 16) < 127) else '.' for b in byteValues.split(' ')[:-1]])
+        self.hexLines.append(offset + byteValues + " "*(self.program.settings["hexLineLength"]*3-len(byteValues)) + "  " + asciiValues)
+        if (len(self.hexLines) != self.hexScreen.getmaxyx()[0]-2):
+          self.hexLines.append('-'*(self.program.settings["hexLineLength"]*4 + 13))
+
+        line_byte = None
+        while line_byte is None and self.br.offset <= self.bv.end:
+          self.br.seek(self.br.offset+1)
+          line_byte = self.br.read(1)
+        self.br.seek(self.br.offset-1)
+
+      if (len(self.hexLines) == self.hexScreen.getmaxyx()[0]-2):
+        break
 
   def parseInput_functionList(self, key):
     bvFunctionsLen = len(self.bv.functions)
@@ -181,29 +223,39 @@ class BinaryNinjaContext():
       self.parseInput_xrefs(key)
 
   def parseInput_hex(self, key):
-    lineLength = 24
-
     # Scroll
     if key == self.program.settings["hexViewRight"]:
-      self.pos += 1
-      if self.pos % lineLength == 0:
-        self.hexOffset += 1
+      self.hexCursor += 0.5
+
+      if self.hexCursor%1.0 == 0:
+        self.pos += 1
+        if self.pos % self.program.settings["hexLineLength"] == 0:
+          self.hexOffset += 1
+
     elif key == self.program.settings["hexViewLeft"]:
-      if self.pos % lineLength == 0:
-        self.hexOffset -= 1
-      self.pos -= 1
+      self.hexCursor -= 0.5
+
+      if self.hexCursor%1.0 == 0.5:
+        if self.pos % self.program.settings["hexLineLength"] == 0:
+          self.hexOffset -= 1
+        self.pos -= 1
+
     elif key == self.program.settings["hexViewLineDown"]:
       self.hexOffset += 1
-      self.pos += lineLength
+      self.pos += self.program.settings["hexLineLength"]
+      self.hexCursor += self.program.settings["hexLineLength"]
     elif key == self.program.settings["hexViewLineUp"]:
       self.hexOffset -= 1
-      self.pos -= lineLength
+      self.pos -= self.program.settings["hexLineLength"]
+      self.hexCursor -= self.program.settings["hexLineLength"]
     elif key == self.program.settings["hexViewPageDown"]:
       self.hexOffset += self.hexScreen.getmaxyx()[0]-3
-      self.pos += lineLength * (self.hexScreen.getmaxyx()[0]-3)
+      self.pos += self.program.settings["hexLineLength"] * (self.hexScreen.getmaxyx()[0]-3)
+      self.hexCursor += self.program.settings["hexLineLength"] * (self.hexScreen.getmaxyx()[0]-3)
     elif key == self.program.settings["hexViewPageUp"]:
       self.hexOffset -= self.hexScreen.getmaxyx()[0]-3
-      self.pos -= lineLength * (self.hexScreen.getmaxyx()[0]-3)
+      self.pos -= self.program.settings["hexLineLength"] * (self.hexScreen.getmaxyx()[0]-3)
+      self.hexCursor -= self.program.settings["hexLineLength"] * (self.hexScreen.getmaxyx()[0]-3)
 
     # Adjust for off screen
     if self.hexOffset < 0:
@@ -213,58 +265,19 @@ class BinaryNinjaContext():
 
     if self.pos < self.bv.start:
       self.pos = self.bv.start
+      self.hexCursor = self.pos
     elif self.pos > self.bv.end:
       self.pos = self.bv.end
+      self.hexCursor = self.pos + 0.5
 
-    # Get lines to render
-    self.hexLines = []
-    topOfScreen = (self.pos - (self.pos % lineLength)) - (self.hexOffset * lineLength)
-    self.topOfScreen = topOfScreen
-    self.br.seek(topOfScreen)
-    # TODO...make this for loop at least reasonably efficient...it's seriously just a clusterfuck right now
-    for _ in range(self.hexScreen.getmaxyx()[0]-2):
-      offset = "{:08x}   ".format(self.br.offset)
-      line_bytes = self.br.read(lineLength)
-      
-      # Sections that don't exist in the memory
-      if line_bytes is None:
-        line_bytes = b''
-        line_byte = self.br.read(1)
-        while line_byte is not None:
-          line_bytes += line_byte
-          line_byte = self.br.read(1)
+    #   if self.hexOffset == skippedLinesLine:
+    # if key == self.program.settings["hexViewLineUp"] or key == self.program.settings["hexViewPageUp"]:
+    #   self.hexOffset -= 1
+    # if key == self.program.settings["hexViewLineDown"] or key == self.program.settings["hexViewPageDown"]:
+    #   self.hexOffset += 1
+    #   self.pos = self.br.offset
 
-      if len(line_bytes) == lineLength:
-        byteValues = ''.join(["{:02x} ".format(b) for b in line_bytes])[:-1]
-        asciiValues = ''.join([chr(int(b, 16)) if (int(b, 16) > 31 and int(b, 16) < 127) else '.' for b in byteValues.split(' ')])
-        self.hexLines.append(offset + byteValues + "   " + asciiValues)
-
-      else:
-        # skippedLinesLine = 0
-
-        byteValues = ''.join(["{:02x} ".format(b) for b in line_bytes])[:-1]
-        asciiValues = ''.join([chr(int(b, 16)) if (int(b, 16) > 31 and int(b, 16) < 127) else '.' for b in byteValues.split(' ')[:-1]])
-        self.hexLines.append(offset + byteValues + " "*(lineLength*3-len(byteValues)) + "  " + asciiValues)
-        if (len(self.hexLines) != self.hexScreen.getmaxyx()[0]-2):
-          self.hexLines.append('-'*(lineLength*4 + 13))
-          # skippedLinesLine = len(self.hexLines)-1
-
-        line_byte = None
-        while line_byte is None and self.br.offset <= self.bv.end:
-
-          # if self.hexOffset == skippedLinesLine:
-          #   # if key == self.program.settings["hexViewLineUp"] or key == self.program.settings["hexViewPageUp"]:
-          #   #   self.hexOffset -= 1
-          #   if key == self.program.settings["hexViewLineDown"] or key == self.program.settings["hexViewPageDown"]:
-          #     self.hexOffset += 1
-          #     self.pos = self.br.offset
-
-          self.br.seek(self.br.offset+1)
-          line_byte = self.br.read(1)
-        self.br.seek(self.br.offset-1)
-
-      if (len(self.hexLines) == self.hexScreen.getmaxyx()[0]-2):
-        break
+    self.loadHexLines()
 
   def parseInput_cfg_main(self, key):
     pass  # TODO...impliment parseInput_cfg_main
@@ -280,6 +293,53 @@ class BinaryNinjaContext():
     elif self.focus == BinaryNinjaContext.Focus.XREF:
       self.parseInput_xrefs(key)
 
+  def parseInput_popup_goto(self, key):
+    if key == "KEY_BACKSPACE":
+      if self.gotoCursor > 0:
+        self.gotoCursor -= 1
+        self.gotoInput[self.gotoCursor] = "_"
+      else:
+        self.popup = BinaryNinjaContext.Popup.NONE
+        del self.gotoInput
+        del self.gotoCursor
+
+    elif key == self.program.settings["confirm"]:
+      try:
+        gotoInput = eval(''.join(self.gotoInput[:self.gotoCursor]))
+        if isinstance(gotoInput, int):
+
+          if self.view == BinaryNinjaContext.View.LINEAR:
+            self.pos = gotoInput
+            self.cursorOffset = 0
+            self.loadLinearDisassembly()
+          elif self.view == BinaryNinjaContext.View.HEX:
+            self.pos = gotoInput
+            self.loadHexLines()
+          elif self.view == BinaryNinjaContext.View.CFG:
+            self.pos = gotoInput
+
+          self.popup = BinaryNinjaContext.Popup.NONE
+          del self.gotoInput
+          del self.gotoCursor
+      except:
+        pass
+
+
+    elif key == "KEY_LEFT":
+      if self.gotoCursor > 0:
+        self.gotoCursor -= 1
+    elif key == "KEY_RIGHT":
+      if self.gotoCursor < len(self.gotoInput):
+        self.gotoCursor -= 1
+
+    elif not key == '':  # `User is Typing...``
+      if self.gotoCursor < len(self.gotoInput):
+        self.gotoInput[self.gotoCursor] = key
+        self.gotoCursor += 1
+        # Clear the rest of the string
+        for i in range(self.gotoCursor, len(self.gotoInput)):
+          self.gotoInput[i] = '_'
+
   def parseInput(self, key):
     if key == self.program.settings["BinaryNinjaContextSwitchView"]:
       # Clean Up
@@ -289,6 +349,9 @@ class BinaryNinjaContext():
         del self.xrefsScreen
       elif self.view == BinaryNinjaContext.View.HEX:
         del self.hexScreen
+        del self.hexCursor
+        del self.hexLines
+        del self.hexOffset
       elif self.view == BinaryNinjaContext.View.CFG:
         del self.cfgScreen
         del self.functionListScreen
@@ -312,6 +375,9 @@ class BinaryNinjaContext():
       elif self.view == BinaryNinjaContext.View.HEX:
         self.updateFunctionList = True
         self.hexScreen = curses.newpad(curses.LINES-1, curses.COLS)
+        self.hexOffset = 0
+        self.hexCursor = self.pos
+        self.loadHexLines()
       elif self.view == BinaryNinjaContext.View.CFG:
         self.cfgScreen = curses.newpad(curses.LINES-1, curses.COLS - self.program.settings["functionListScreenWidth"])
         self.functionListScreen = curses.newpad(curses.LINES-1-self.program.settings["xrefsScreenHeight"], self.program.settings["functionListScreenWidth"])
@@ -325,17 +391,23 @@ class BinaryNinjaContext():
       elif self.focus == BinaryNinjaContext.Focus.XREF:
         self.focus = BinaryNinjaContext.Focus.MAIN
 
-    elif key == self.program.settings["BinaryNinjaContextSwitchFocus"]:
-      pass
+    # Popup context switches
+    elif (key == self.program.settings["popupWindowGoto"].lower() or key == self.program.settings["popupWindowGoto"].upper()) and self.popup == BinaryNinjaContext.Popup.NONE:
+      self.popup = BinaryNinjaContext.Popup.GOTO
+      self.gotoInput = ['_'] * 12
+      self.gotoCursor = 0
 
-    if self.view == BinaryNinjaContext.View.LINEAR:
+    # Popup input capturing
+    elif self.popup == BinaryNinjaContext.Popup.GOTO:
+      self.parseInput_popup_goto(key)
+    
+    # Views input capturing
+    elif self.view == BinaryNinjaContext.View.LINEAR:
       self.parseInput_linear(key)
     elif self.view == BinaryNinjaContext.View.HEX:
       self.parseInput_hex(key)
     elif self.view == BinaryNinjaContext.View.CFG:
       self.parseInput_cfg(key)
-    elif self.view == BinaryNinjaContext.View.GOTO:
-      self.parseInput_goto(key)
 
   def render_functionList(self):
     # Not the best implimentation of this...but it makes only the functionList window input-lag (unless in dual focus mode... :/ )
@@ -351,12 +423,13 @@ class BinaryNinjaContext():
     if self.updateFunctionList:
       for yLine in range(self.funcListPos, self.funcListPos+(curses.LINES-3)-self.program.settings["xrefsScreenHeight"]):
         if yLine == self.funcListCur + self.funcListPos:
-          # TODO...Turn into function name's highlight instead, sift text back over to the left
-          self.functionListScreen.addstr(yLine-self.funcListPos+1, 2, '> ' + self.bv.functions[yLine].name)  # Name access is slow
+          self.functionListScreen.addstr(yLine-self.funcListPos+1, 3, self.bv.functions[yLine].name, curses.A_STANDOUT)  # Name access is slow
         else:
-          self.functionListScreen.addstr(yLine-self.funcListPos+1, 4, self.bv.functions[yLine].name)  # Name access is slow
+          self.functionListScreen.addstr(yLine-self.funcListPos+1, 3, self.bv.functions[yLine].name)  # Name access is slow
       self.updateFunctionList = False
 
+    title = "Function List"
+    drawMultiLineText(0, self.program.settings["functionListScreenWidth"]-len(title)-2, title, self.functionListScreen)
     self.functionListScreen.noutrefresh(0, 0, 0, 0, curses.LINES-2-self.program.settings["xrefsScreenHeight"], self.program.settings["functionListScreenWidth"])
 
   def render_xrefs(self):
@@ -381,6 +454,8 @@ class BinaryNinjaContext():
     if len(xrefLines) == 0:
       self.xrefsScreen.addstr(1, 2, ":(")
 
+    title = "XREFS"
+    drawMultiLineText(0, self.program.settings["functionListScreenWidth"]-len(title)-2, title, self.xrefsScreen)
     self.xrefsScreen.noutrefresh(0, 0, curses.LINES-1-self.program.settings["xrefsScreenHeight"], 0, curses.LINES-2, self.program.settings["functionListScreenWidth"])
 
   def render_linear(self):
@@ -401,25 +476,30 @@ class BinaryNinjaContext():
 
     for yLine, textLine in zip(rendRange, self.disassemblyLines):
       if yLine == self.cursorOffset:
-        # TODO...Turn into a linear disassembly line highlight instead, shift text back over to the left
-        self.linearDisassemblyScreen.addstr(yLine+1, 1, '>' + str(textLine))
+        self.linearDisassemblyScreen.addstr(yLine+1, 2, str(textLine), curses.A_STANDOUT)
       else:
         self.linearDisassemblyScreen.addstr(yLine+1, 2, str(textLine))
 
+    title = "Linear"
+    drawMultiLineText(0, self.linearDisassemblyScreen.getmaxyx()[1]-len(title)-3, title, self.linearDisassemblyScreen)
     self.linearDisassemblyScreen.noutrefresh(0, 0, 0, self.program.settings["functionListScreenWidth"], curses.LINES-2, curses.COLS-1)
 
   def render_hex(self):
     self.hexScreen.erase()
     self.hexScreen.border()
 
-    # TODO...impliment highlighting current position
-
-    for yLine, rawBytes in zip(range(len(self.hexLines)), self.hexLines):
+    for yLine, rawBytes in enumerate(self.hexLines):
       if yLine == self.hexOffset:
-        self.hexScreen.addstr(yLine+1, 1, ">" + rawBytes)
+        for xLine, rawByte in enumerate(rawBytes):
+          if self.hexCursor%self.program.settings["hexLineLength"] == (xLine-8-3)//3 + ((xLine-8-3)%3)/2.0 and (xLine-8-3)%3 != 2:
+            self.hexScreen.addstr(yLine+1, 2+xLine, rawByte, curses.A_STANDOUT)
+          else:
+            self.hexScreen.addstr(yLine+1, 2+xLine, rawByte)
       else:
         self.hexScreen.addstr(yLine+1, 2, rawBytes)
 
+    title = "Hex"
+    drawMultiLineText(0, self.hexScreen.getmaxyx()[1]-len(title)-3, title, self.hexScreen)
     self.hexScreen.noutrefresh(0, 0, 0, 0, curses.LINES-2, curses.COLS-1)
 
   def render_cfg(self):
@@ -434,6 +514,8 @@ class BinaryNinjaContext():
 
     # TODO...impliment render_cfg (still need to render actual graphs..)
     drawMultiLineText(1, 1, "Control Flow Graph!", self.cfgScreen)
+    title = "CFG"
+    drawMultiLineText(0, self.cfgScreen.getmaxyx()[1]-len(title)-3, title, self.cfgScreen)
     self.cfgScreen.noutrefresh(0, 0, 0, self.program.settings["functionListScreenWidth"], curses.LINES-2, curses.COLS-1)
 
   def render_alerts(self):
@@ -443,15 +525,29 @@ class BinaryNinjaContext():
     alerts += str(self.bv) + "   "
     alerts += "Cursor Position: " + hex(self.pos) + "   "
     try:
-      alerts += "Disass Lines: " + str(len(self.disassemblyLines)) + "   "
+      # alerts += "Disass Lines: " + str(len(self.disassemblyLines)) + "   "
       alerts += "PosOffset: " + str(self.posOffset) + "   "
-      alerts += "LinDisCursOffset: " + str(self.cursorOffset) + "   "
-      alerts += "realOff: " + str(self.realOffset) + "   "
+      # alerts += "LinDisCursOffset: " + str(self.cursorOffset) + "   "
+      # alerts += "realOff: " + str(self.realOffset) + "   "
+      alerts += "hexCursor: " + str(self.hexCursor) + "   "
+      alerts += "xthing: " + str(self.xthing) + "   "
       # alerts += "" + str() + "   "
     except:
       pass
     self.alertsScreen.addstr(0, 0, alerts)
     self.alertsScreen.noutrefresh(0, 0, curses.LINES-1, 0, curses.LINES-1, curses.COLS-1)
+  
+  def render_popups(self):
+    if self.popup == BinaryNinjaContext.Popup.NONE:
+      return
+    
+    if self.popup == BinaryNinjaContext.Popup.GOTO:
+      self.popupGotoScreen.erase()
+      self.popupGotoScreen.border()
+
+      drawMultiLineText(0, 10, "Goto", self.popupGotoScreen)
+      drawMultiLineText(1, 2, ''.join(self.gotoInput), self.popupGotoScreen)
+      self.popupGotoScreen.noutrefresh(0, 0, (curses.LINES//2)-1, (curses.COLS//2)-8, (curses.LINES//2)+2, (curses.COLS//2)+8)
 
   def render(self):
     if self.view == BinaryNinjaContext.View.LINEAR:
@@ -462,3 +558,4 @@ class BinaryNinjaContext():
       self.render_cfg()
 
     self.render_alerts()
+    self.render_popups()

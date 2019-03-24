@@ -24,7 +24,6 @@ Currently, if you didn't get this from the list above, N2 is seriously lacking..
 
 ```
 # TODO...FIX the ugly main menu screen...seriously
-# TODO...impliment 'GO TO' box
 # TODO...maybe Separate each view into a class to make cleaning up the various view-dependent variables neater?
 # TODO...impliment color themes with the new color theme format courtesy of peter
 # TODO...impliment disassembly options
