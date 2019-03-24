@@ -256,6 +256,21 @@ class BinaryNinjaContext():
       self.hexOffset -= self.hexScreen.getmaxyx()[0]-3
       self.pos -= self.program.settings["hexLineLength"] * (self.hexScreen.getmaxyx()[0]-3)
       self.hexCursor -= self.program.settings["hexLineLength"] * (self.hexScreen.getmaxyx()[0]-3)
+    
+    elif key in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f']:
+      if self.hexCursor % 1.0 == 0.5:
+        self.bv.write(self.pos, (int(key, 16) |
+          (ord(self.bv.read(self.pos, 1).decode('charmap')) & 0b11110000)).to_bytes(1, 'big'))
+
+        self.hexCursor += 0.5
+        self.pos += 1
+        if self.pos % self.program.settings["hexLineLength"] == 0:
+          self.hexOffset += 1
+      else:
+        self.bv.write(self.pos, (int(key, 16) << 4 |
+          (ord(self.bv.read(self.pos, 1).decode('charmap')) & 0b00001111)).to_bytes(1, 'big'))
+
+        self.hexCursor += 0.5
 
     # Adjust for off screen
     if self.hexOffset < 0:
