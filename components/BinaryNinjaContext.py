@@ -6,12 +6,12 @@ import curses
 
 # TODO...Loosely ordered by importance:
 # TODO...maybe seperate each view into a class to make cleaning up the various view-dependant variables neater?
-# TODO...impliment color themes with the new color theme format courtesy of peter
-# TODO...impliment disassembly options
-# TODO...impliment scroll bars on windows?, and the setting to disable them
-# TODO...impliment the ability to edit what we're seeing.. Enter an insert mode in Hex view (or be in it by defualt like in BN proper), and have patches availible in linear/cfg
-# TODO...impliment the ability to cursor into linear assembly lines.
-# TODO...impliment undo!  I think the API actually takes care of this for us nicely, but editing has to be implimented first and it'd be nice to snap the view back to whatever is being edited too
+# TODO...implement color themes with the new color theme format courtesy of peter
+# TODO...implement disassembly options
+# TODO...implement scroll bars on windows?, and the setting to disable them
+# TODO...implement the ability to edit what we're seeing.. Enter an insert mode in Hex view (or be in it by defualt like in BN proper), and have patches availible in linear/cfg
+# TODO...implement the ability to cursor into linear assembly lines.
+# TODO...implement undo!  I think the API actually takes care of this for us nicely, but editing has to be implemented first and it'd be nice to snap the view back to whatever is being edited too
 
 
 class BinaryNinjaContext():
@@ -173,13 +173,13 @@ class BinaryNinjaContext():
     elif self.funcListPos > bvFunctionsLen - self.functionListScreen.getmaxyx()[0]+2:
       self.funcListPos = bvFunctionsLen - self.functionListScreen.getmaxyx()[0]+2
 
-    # TODO...Impliment Wrap Around
-    # TODO...Impliment Not Crashing On Moving Past Buffer
+    # TODO...Implement Wrap Around
+    # TODO...Implement Not Crashing On Moving Past Buffer
 
     self.updateFunctionList = True
 
   def parseInput_xrefs(self, key):
-    # TODO...impliment xrefs window up/down, cursor, and selection mechanics
+    # TODO...implement xrefs window up/down, cursor, and selection mechanics
     pass
 
   def parseInput_linear_main(self, key):
@@ -280,7 +280,7 @@ class BinaryNinjaContext():
     self.loadHexLines()
 
   def parseInput_cfg_main(self, key):
-    pass  # TODO...impliment parseInput_cfg_main
+    pass  # TODO...implement parseInput_cfg_main
 
   def parseInput_cfg(self, key):
     if self.program.settings["BinaryNinjaContextDualFocus"]:
@@ -410,7 +410,7 @@ class BinaryNinjaContext():
       self.parseInput_cfg(key)
 
   def render_functionList(self):
-    # Not the best implimentation of this...but it makes only the functionList window input-lag (unless in dual focus mode... :/ )
+    # Not the best implementation of this...but it makes only the functionList window input-lag (unless in dual focus mode... :/ )
     # TODO...FIX the lag induced by fetching the names of the functions (seems to take forever)
     if self.updateFunctionList:
       self.functionListScreen.erase()
@@ -512,7 +512,7 @@ class BinaryNinjaContext():
     else:
       self.cfgScreen.border()
 
-    # TODO...impliment render_cfg (still need to render actual graphs..)
+    # TODO...implement render_cfg (still need to render actual graphs..)
     drawMultiLineText(1, 1, "Control Flow Graph!", self.cfgScreen)
     title = "CFG"
     drawMultiLineText(0, self.cfgScreen.getmaxyx()[1]-len(title)-3, title, self.cfgScreen)
